@@ -264,12 +264,38 @@ impl NameCheapClient {
         let json_value: Value = parse_xml_to_json(&response_text)?;
         info!("Response: {:#?}", json_value);
 
+        let status = json_value
+            .pointer("/ApiResponse/Status")
+            .and_then(Value::as_str)
+            .unwrap_or("UNKNOWN");
+
+        if status == "ERROR" {
+            error!("Namecheap API returned error status");
+            error!("Raw XML response: {}", response_text);
+
+            let errors = json_value
+                .pointer("/ApiResponse/Errors/Error")
+                .and_then(Value::as_array)
+                .map(|arr| {
+                    arr.iter()
+                        .map(|err| {
+                            let number = err.get("Number").and_then(Value::as_str).unwrap_or("Unknown");
+                            let description = err.get("$text").and_then(Value::as_str).unwrap_or("No description");
+                            format!("Error {}: {}", number, description)
+                        })
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                })
+                .unwrap_or_else(|| "Unknown error".to_string());
+
+            return Err(format!("Namecheap API error: {}", errors).into());
+        }
+
         let result = json_value
             .pointer("/ApiResponse/CommandResponse/DomainDNSSetHostsResult")
             .ok_or("Failed to set host records")?
             .clone();
 
-        // Check if the operation was successful
         if result.get("IsSuccess").and_then(Value::as_bool).unwrap_or(false) {
             info!("Set Hosts operation was successful.");
         } else {
