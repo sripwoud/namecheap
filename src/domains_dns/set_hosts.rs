@@ -310,15 +310,35 @@ impl NameCheapClient {
             .ok_or("Failed to set host records")?
             .clone();
 
-        if result.get("IsSuccess").and_then(Value::as_bool).unwrap_or(false) {
+        let is_success = result.get("is_success")
+            .or_else(|| result.get("IsSuccess"))
+            .and_then(|v| {
+                v.as_bool().or_else(|| {
+                    v.as_str().and_then(|s| match s.to_lowercase().as_str() {
+                        "true" | "1" => Some(true),
+                        "false" | "0" => Some(false),
+                        _ => None,
+                    })
+                })
+            })
+            .unwrap_or(false);
+
+        if is_success {
             info!("Set Hosts operation was successful.");
+            info!("Set Hosts Result: {:#?}", result);
+            Ok(result)
         } else {
             error!("Set Hosts operation failed.");
+            error!("Set Hosts Result: {:#?}", result);
+
+            let warnings = result.get("Warnings")
+                .and_then(|w| w.as_object())
+                .and_then(|obj| obj.get("Warning"))
+                .map(|w| format!("{:#?}", w))
+                .unwrap_or_else(|| "No warnings provided".to_string());
+
+            Err(format!("Set Hosts operation failed. Warnings: {}", warnings).into())
         }
-
-        info!("Set Hosts Result: {:#?}", result);
-
-        Ok(result)
     }
 }
 
