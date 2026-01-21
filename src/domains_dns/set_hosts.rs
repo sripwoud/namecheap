@@ -1,4 +1,5 @@
 use serde_json::{ Value, json };
+use std::collections::HashMap;
 use std::error::Error;
 use tracing::{ info, error };
 
@@ -145,7 +146,23 @@ impl NameCheapClient {
 
         info!("Combined Hosts: {:#?}", combined_hosts);
 
-        let request_values: Vec<Value> = combined_hosts
+        let mut dedup_map: HashMap<(String, String), Value> = HashMap::new();
+        for host in combined_hosts {
+            let name = host.get("HostName")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let record_type = host.get("RecordType")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            dedup_map.insert((name, record_type), host);
+        }
+
+        let deduplicated_hosts: Vec<Value> = dedup_map.into_values().collect();
+        info!("Deduplicated Hosts: {:#?}", deduplicated_hosts);
+
+        let request_values: Vec<Value> = deduplicated_hosts
             .iter()
             .enumerate()
             .flat_map(|(index, host)| {
@@ -210,7 +227,7 @@ impl NameCheapClient {
             </ApiRequest>
         "#;
 
-        let hosts_xml: String = combined_hosts
+        let hosts_xml: String = deduplicated_hosts
             .iter()
             .enumerate()
             .map(|(index, host)| {
