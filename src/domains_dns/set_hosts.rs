@@ -266,7 +266,7 @@ impl NameCheapClient {
         eprintln!("DEBUG: Response JSON: {:#?}", json_value);
 
         let status = json_value
-            .pointer("/ApiResponse/Status")
+            .pointer("/ApiResponse/status")
             .and_then(Value::as_str)
             .unwrap_or("UNKNOWN");
 
@@ -276,20 +276,30 @@ impl NameCheapClient {
             error!("Namecheap API returned error status");
             error!("Raw XML response: {}", response_text);
 
-            let errors = json_value
-                .pointer("/ApiResponse/Errors/Error")
-                .and_then(Value::as_array)
-                .map(|arr| {
-                    arr.iter()
-                        .map(|err| {
-                            let number = err.get("Number").and_then(Value::as_str).unwrap_or("Unknown");
-                            let description = err.get("$text").and_then(Value::as_str).unwrap_or("No description");
-                            format!("Error {}: {}", number, description)
-                        })
-                        .collect::<Vec<_>>()
-                        .join("; ")
-                })
-                .unwrap_or_else(|| "Unknown error".to_string());
+            let error_value = json_value.pointer("/ApiResponse/Errors/Error");
+            let errors = match error_value {
+                Some(Value::Array(arr)) => arr
+                    .iter()
+                    .map(|err| {
+                        let number = err.get("number").and_then(Value::as_str).unwrap_or("Unknown");
+                        let description = err.get("$text").and_then(Value::as_str).unwrap_or("No description");
+                        format!("Error {}: {}", number, description)
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; "),
+                Some(Value::Object(_)) => {
+                    let number = error_value
+                        .and_then(|v| v.get("number"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("Unknown");
+                    let description = error_value
+                        .and_then(|v| v.get("$text"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("No description");
+                    format!("Error {}: {}", number, description)
+                }
+                _ => "Unknown error".to_string(),
+            };
 
             return Err(format!("Namecheap API error: {}", errors).into());
         }
