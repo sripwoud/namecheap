@@ -49,15 +49,22 @@ impl NameCheapClient {
             Some(1),
             None,
             Some(params),
-            
+
         ).send().await?;
         info!("Response: {:#?}", response);
+        eprintln!("DEBUG get_hosts: Full API response: {:#?}", response);
 
         let hosts = response
             .pointer("/ApiResponse/CommandResponse/DomainDNSGetHostsResult/host")
             .cloned()
-            .unwrap_or_else(|| json!([])); // Return an empty array if no host records are found
+            .unwrap_or_else(|| {
+                eprintln!("DEBUG get_hosts: No host records found at expected path");
+                eprintln!("DEBUG get_hosts: Checking CommandResponse: {:#?}",
+                    response.pointer("/ApiResponse/CommandResponse"));
+                json!([])
+            });
 
+        eprintln!("DEBUG get_hosts: Extracted hosts: {:#?}", hosts);
         Ok(hosts)
     }
 }
