@@ -2,6 +2,43 @@ use serde::Deserialize;
 use serde::Serialize;
 use dotenv::dotenv;
 
+fn deserialize_string_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Unexpected};
+
+    struct StringBoolVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for StringBoolVisitor {
+        type Value = bool;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a boolean or string representing a boolean")
+        }
+
+        fn visit_bool<E>(self, value: bool) -> Result<bool, E>
+        where
+            E: de::Error,
+        {
+            Ok(value)
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<bool, E>
+        where
+            E: de::Error,
+        {
+            match value.to_lowercase().as_str() {
+                "true" | "1" => Ok(true),
+                "false" | "0" | "" => Ok(false),
+                _ => Err(de::Error::invalid_value(Unexpected::Str(value), &self)),
+            }
+        }
+    }
+
+    deserializer.deserialize_any(StringBoolVisitor)
+}
+
 pub mod utils;
 pub mod domains;
 pub mod response;
@@ -108,13 +145,13 @@ pub struct Host {
     pub address: String,
     #[serde(rename = "type")]
     pub type_: String,
-    #[serde(rename = "is_active")]
+    #[serde(rename = "is_active", deserialize_with = "deserialize_string_bool")]
     pub is_active: bool,
     #[serde(rename = "ttl")]
     pub ttl: i64,
     #[serde(rename = "mxpref")]
     pub mx_pref: String,
-    #[serde(rename = "is_ddnsenabled")]
+    #[serde(rename = "is_ddnsenabled", deserialize_with = "deserialize_string_bool")]
     pub is_ddns_enabled: bool,
     #[serde(rename = "friendly_name")]
     pub friendly_name: String,
