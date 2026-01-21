@@ -100,37 +100,24 @@ impl NameCheapClient {
         let existing_hosts = self.domains_dns_get_hosts(sld, tld).await?;
         info!("Existing Hosts: {:#?}", existing_hosts);
 
-        // Check if there are existing hosts
-        let combined_hosts: Vec<Value> = if
-            let Some(existing_hosts_array) = existing_hosts.as_array()
-        {
-            // Combine existing and new hosts
-            existing_hosts_array
-                .iter()
-                .cloned()
-                .chain(
-                    new_hosts
-                        .iter()
-                        .map(|host| {
-                            json!({
-                        "HostName": host.host_name,
-                        "RecordType": host.record_type,
-                        "Address": host.address,
-                        "MXPref": host.mx_pref,
-                        "EmailType": host.email_type,
-                        "TTL": host.ttl,
-                        "Flag": host.flag,
-                        "Tag": host.tag
-                    })
-                        })
-                )
-                .collect()
-        } else {
-            // If no existing hosts, use only new hosts
-            new_hosts
-                .iter()
-                .map(|host| {
-                    json!({
+        // Normalize existing hosts to Vec, handling both array and single object responses
+        let existing_hosts_vec: Vec<Value> = match existing_hosts {
+            Value::Array(arr) => arr,
+            Value::Object(_) => vec![existing_hosts],
+            _ => {
+                info!("No existing hosts found (got: {:?}), starting with empty list", existing_hosts);
+                vec![]
+            }
+        };
+
+        // Combine existing and new hosts
+        let combined_hosts: Vec<Value> = existing_hosts_vec
+            .into_iter()
+            .chain(
+                new_hosts
+                    .iter()
+                    .map(|host| {
+                        json!({
                     "HostName": host.host_name,
                     "RecordType": host.record_type,
                     "Address": host.address,
@@ -140,9 +127,9 @@ impl NameCheapClient {
                     "Flag": host.flag,
                     "Tag": host.tag
                 })
-                })
-                .collect()
-        };
+                    })
+            )
+            .collect();
 
         info!("Combined Hosts: {:#?}", combined_hosts);
 
