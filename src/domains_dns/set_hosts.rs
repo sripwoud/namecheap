@@ -263,11 +263,14 @@ impl NameCheapClient {
         let response_text = response.text().await?;
         let json_value: Value = parse_xml_to_json(&response_text)?;
         info!("Response: {:#?}", json_value);
+        eprintln!("DEBUG: Response JSON: {:#?}", json_value);
 
         let status = json_value
             .pointer("/ApiResponse/Status")
             .and_then(Value::as_str)
             .unwrap_or("UNKNOWN");
+
+        eprintln!("DEBUG: API Status: {}", status);
 
         if status == "ERROR" {
             error!("Namecheap API returned error status");
